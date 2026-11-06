@@ -1,0 +1,216 @@
+from __future__ import annotations
+
+import argparse
+import re
+import shutil
+import subprocess
+import sys
+from datetime import date
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+CONTENT = ROOT / 'content' / 'posts'
+
+PLATFORMS = {
+    'hack-the-box': {'name': 'Hack The Box', 'prefix': 'htb'},
+    'portswigger': {'name': 'PortSwigger', 'prefix': 'portswigger'},
+    'ctf': {'name': 'CTF / Competition', 'prefix': 'ctf'},
+}
+
+DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Insane', 'Unknown']
+STATUSES = ['Draft', 'Solved', 'Partial']
+
+
+def slugify(text: str) -> str:
+    text = text.strip().lower()
+    text = re.sub(r'[^a-z0-9\s-]', '', text.encode('ascii', 'ignore').decode('ascii'))
+    text = re.sub(r'[\s_\-]+', '-', text).strip('-')
+    return text
+
+
+def choose_platform(value: str | None) -> str:
+    if value:
+        return value
+    print('เลือก platform:')
+    for index, (key, info) in enumerate(PLATFORMS.items(), 1):
+        print(f'  {index}. {info["name"]} ({key})')
+    while True:
+        choice = input('> ').strip().lower()
+        if choice in PLATFORMS:
+            return choice
+        try:
+            index = int(choice)
+            if 1 <= index <= len(PLATFORMS):
+                return list(PLATFORMS)[index - 1]
+        except ValueError:
+            pass
+        print('ใส่หมายเลขหรือชื่อ platform เช่น hack-the-box')
+
+
+def ask(value: str | None, label: str, required: bool = False) -> str:
+    if value is not None:
+        value = value.strip()
+        if required and not value:
+            raise SystemExit(f'{label} ห้ามว่าง')
+        return value
+    while True:
+        value = input(f'{label}: ').strip()
+        if value or not required:
+            return value
+        print(f'{label} ห้ามว่าง')
+
+
+def choose_difficulty(value: str | None) -> str:
+    if value:
+        if value in DIFFICULTIES:
+            return value
+        raise SystemExit(f'difficulty ต้องเป็นหนึ่งใน: {", ".join(DIFFICULTIES)}')
+    print('Difficulty:')
+    for index, item in enumerate(DIFFICULTIES, 1):
+        print(f'  {index}. {item}')
+    value = input('> [Enter = Unknown] ').strip()
+    if not value:
+        return 'Unknown'
+    try:
+        index = int(value)
+        if 1 <= index <= len(DIFFICULTIES):
+            return DIFFICULTIES[index - 1]
+    except ValueError:
+        pass
+    if value in DIFFICULTIES:
+        return value
+    raise SystemExit(f'difficulty ไม่ถูกต้อง: {value}')
+
+
+def choose_status(value: str | None) -> str:
+    if value:
+        if value in STATUSES:
+            return value
+        raise SystemExit(f'status ต้องเป็นหนึ่งใน: {", ".join(STATUSES)}')
+    print('Status:')
+    for index, item in enumerate(STATUSES, 1):
+        print(f'  {index}. {item}')
+    value = input('> [Enter = Draft] ').strip()
+    if not value:
+        return 'Draft'
+    try:
+        index = int(value)
+        if 1 <= index <= len(STATUSES):
+            return STATUSES[index - 1]
+    except ValueError:
+        pass
+    if value in STATUSES:
+        return value
+    raise SystemExit(f'status ไม่ถูกต้อง: {value}')
+
+
+def parse_tags(value: str | None) -> list[str]:
+    raw = value if value is not None else input('Tags (คั่นด้วย comma): ')
+    tags = [tag.strip().lower() for tag in raw.split(',') if tag.strip()]
+    return tags
+
+
+def build_slug(platform: str, title: str, slug: str | None) -> str:
+    if slug:
+        candidate = slugify(slug)
+    else:
+        candidate = slugify(title)
+        prefix = PLATFORMS[platform]['prefix']
+        candidate = f'{prefix}-{candidate}' if candidate else f'{prefix}-writeup'
+    if not candidate:
+        raise SystemExit('slug ว่างเปล่า กรุณาใส่ title หรือ --slug')
+    return candidate
+
+
+def open_file(path: Path) -> None:
+    code = shutil.which('code')
+    if code:
+        subprocess.Popen([code, '-r', str(path)])
+        return
+    if sys.platform.startswith('win'):
+        import os
+        os.startfile(path)  # type: ignore[attr-defined]
+        return
+    subprocess.Popen(['xdg-open', str(path)])
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description='Create a new pentest writeup markdown file.')
+    parser.add_argument('--platform', choices=list(PLATFORMS), help='hack-the-box | portswigger | ctf')
+    parser.add_argument('--title', help='Writeup title')
+    parser.add_argument('--slug', help='Custom slug (lowercase letters, numbers, hyphens)')
+    parser.add_argument('--difficulty', choices=DIFFICULTIES, help='Easy | Medium | Hard | Insane | Unknown')
+    parser.add_argument('--status', choices=STATUSES, help='Draft | Solved | Partial')
+    parser.add_argument('--tags', default=None, help='Comma-separated tags, e.g. sqli,web,burp')
+    parser.add_argument('--summary', default=None, help='Short summary for listing/RSS')
+    parser.add_argument('--date', default=None, help='YYYY-MM-DD; default today')
+    parser.add_argument('--open', action='store_true', help='Open the created file in VS Code/default editor')
+    parser.add_argument('--force', action='store_true', help='Overwrite existing file')
+    args = parser.parse_args()
+
+    platform = choose_platform(args.platform)
+    title = ask(args.title, 'Title', required=True)
+    difficulty = choose_difficulty(args.difficulty)
+    status = choose_status(args.status)
+    tags = parse_tags(args.tags)
+    summary = ask(args.summary, 'Summary (optional)')
+    post_date = args.date or date.today().isoformat()
+    slug = build_slug(platform, title, args.slug)
+
+    try:
+        datetime_value = date.fromisoformat(post_date)
+    except ValueError:
+        raise SystemExit('--date ต้องเป็น YYYY-MM-DD') from None
+
+    target = CONTENT / platform / f'{slug}.md'
+    if target.exists() and not args.force:
+        raise SystemExit(f'ไฟล์มีอยู่แล้ว: {target} (ใช้ --force ถ้าตั้งใจทับ)')
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    frontmatter = {
+        'title': title,
+        'slug': slug,
+        'date': datetime_value.isoformat(),
+        'platform': platform,
+        'category': PLATFORMS[platform]['name'],
+        'tags': tags,
+        'difficulty': difficulty,
+        'status': status,
+        'summary': summary,
+    }
+    template = f'''{yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False).strip()}
+---
+## Scope
+
+- Target / lab:
+- Out of scope:
+
+## Recon
+
+-
+
+## Exploit
+
+-
+
+## Result
+
+-
+
+## Fix / Lesson
+
+-
+
+'''
+    target.write_text(f'---\n{template}', encoding='utf-8')
+
+    print(f'Created: {target}')
+    print(f'Next: python {ROOT / "tools" / "build.py"}')
+    if args.open:
+        open_file(target)
+
+
+if __name__ == '__main__':
+    main()

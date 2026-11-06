@@ -1,0 +1,10 @@
+# generated site
+dist/
+
+# python
+__pycache__/
+*.py[cod]
+
+# local temp/backups
+content/posts/.trash/
+_old-teet4-lab-backup/

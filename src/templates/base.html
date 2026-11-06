@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="th" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <meta name="description" content="{{ description }}">
+  <link rel="icon" href="{{ base }}/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Kanit:wght@400;500;600&family=Sarabun:wght@400;500;600&family=Cascadia+Code&display=swap">
+  <link rel="stylesheet" href="{{ base }}/assets/css/site.css">
+  <script>window.__SITE_BASE__ = {{ base | tojson }};</script>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('profile-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch(e){}</script>
+  <script src="{{ base }}/assets/js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">ข้ามไปเนื้อหา</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="{{ base }}/" aria-label="my-blog home"><b>my-blog</b></a>
+      <nav class="site-nav" data-site-nav aria-label="เมนูหลัก">
+        <a class="nav-link" href="{{ base }}/" {% if nav == 'home' %}aria-current="page"{% endif %}>HOME</a>
+        <a class="nav-link" href="{{ base }}/writeups/" {% if nav == 'writeups' %}aria-current="page"{% endif %}>WRITEUPS</a>
+        <a class="nav-link" href="{{ base }}/about/" {% if nav == 'about' %}aria-current="page"{% endif %}>ABOUT</a>
+        <a class="nav-link" href="{{ base }}/rss.xml">RSS</a>
+      </nav>
+      <div class="header-actions">
+        <button class="icon-button" type="button" data-theme-toggle aria-label="สลับโหมดสี">dark</button>
+        <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="site-nav">menu</button>
+      </div>
+    </div>
+  </header>
+  <main id="main">{% block content %}{% endblock %}</main>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>© <span data-year>2026</span> my-blog</span>
+      <div><a href="{{ base }}/rss.xml">RSS</a> · <a href="{{ base }}/sitemap.xml">Sitemap</a> · <a href="{{ base }}/robots.txt">robots.txt</a></div>
+    </div>
+  </footer>
+</body>
+</html>

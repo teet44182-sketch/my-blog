@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <p class="eyebrow">{{ page_eyebrow }}</p>
+  <h1>{{ page_heading }}</h1>
+  <p>{{ page_intro }}</p>
+</section>
+<nav class="filter-row" aria-label="เลือก platform" style="margin-bottom:1rem">
+  <a class="filter-button {% if not active_platform %}is-active{% endif %}" href="{{ base }}/writeups/">All</a>
+  {% for platform in platforms %}<a class="filter-button {% if active_platform == platform.key %}is-active{% endif %}" href="{{ platform.url }}">{{ platform.name }}</a>{% endfor %}
+</nav>
+<section class="toolbar" aria-label="ค้นหาและกรอง writeups">
+  <label class="search-wrap" for="archive-search"><span aria-hidden="true">⌕</span><input id="archive-search" type="search" placeholder="เช่น sqli, burp, web, medium…" autocomplete="off"></label>
+</section>
+<div class="result-line" id="result-count">{{ filtered_posts | length }} writeups shown</div>
+<ol class="post-list" data-archive-list>
+  {% for post in filtered_posts %}{% include "_post_item.html" %}{% endfor %}
+</ol>
+<div class="empty-state" id="empty-state" role="status">ไม่เจอ writeup ที่ตรงกับคำค้น — ลองลบตัวกรองหรือใช้คำสั้นลง</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="about-grid">
+  <aside>
+    <p class="eyebrow">about</p>
+    <img class="avatar" src="{{ base }}/assets/img/avatar.svg" alt="my-blog avatar" width="160" height="160">
+    <h1 style="font-family:var(--font-display);letter-spacing:-.03em;line-height:1.15;margin:.8rem 0 0">my-blog</h1>
+    <p style="color:var(--muted);line-height:1.7">ผู้สนใจด้าน pentest ที่ทำแล็บจริง วัดผลจริง แล้วเขียนให้ทำตามได้ — เน้น Hack The Box, PortSwigger Web Security Academy และ CTF/Competition</p>
+    <div class="tag-cloud" style="margin-top:.8rem"><a class="tag" href="mailto:hello@example.com">hello@example.com</a><a class="tag" href="{{ base }}/rss.xml">RSS</a></div>
+  </aside>
+  <section>
+    <div class="page-head" style="border-bottom:0;padding-top:0">
+      <p class="eyebrow">focus</p>
+      <h2 style="font-family:var(--font-display);letter-spacing:-.03em;margin:.2rem 0 0">Pentest Lab Notes</h2>
+      <p>โครงเว็บนี้แยก Writeups เป็น Hack The Box / PortSwigger / CTF — แต่ละโพสต์ควรมี scope, tools, timeline, evidence และสิ่งที่ควรทำต่อ</p>
+    </div>
+    <h3>สิ่งที่ถนัด / กำลังพัฒนา</h3>
+    {% for item in skills %}<div class="skill-row"><div class="skill-label"><span>{{ item.name }}</span><b>{{ item.value }}%</b></div><div class="bar"><span style="--value: {{ item.value }}%"></span></div></div>{% endfor %}
+    <h3 style="margin-top:1.5rem">อยากให้ writeup ของคุณเป็นยังไง</h3>
+    <ul>
+      <li>scope/assumptions ชัดเจน — อะไรคือ lab, อะไรคือ production, อะไรทำได้/ไม่ได้</li>
+      <li>ขั้นตอนที่ทำตามได้จริง พร้อม command และ output ที่จำเป็น</li>
+      <li>why — ทำไม payload/technique นี้ได้ผล ไม่ใช่แค่ copy-paste</li>
+      <li>postmortem — อะไรพัง, อะไรที่ควรทำต่อ, และ how to prevent</li>
+    </ul>
+    <h3 style="margin-top:1.5rem">Credit / Ethics</h3>
+    <p>ตัวอย่างและ lab ทั้งหมดควรอยู่ในขอบเขตที่ได้รับอนุญาตเท่านั้น — ถ้าเป็น production จริง ให้รายงานตามช่องทาง responsible disclosure และหยุดเมื่อถึงขอบเขตอำนาจ</p>
+  </section>
+</div>
+{% endblock %}

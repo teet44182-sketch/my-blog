@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<article class="post-layout">
+  <div>
+    <p class="eyebrow">{{ post.category }} · {{ post.platform }} · {{ post.difficulty }}</p>
+    <h1 style="font-family:var(--font-display);letter-spacing:-.03em;line-height:1.15;margin:.35rem 0 0">{{ post.title }}</h1>
+    <div class="post-meta" style="margin:.8rem 0 1rem"><time datetime="{{ post.date }}">{{ post.display_date }}</time><span>·</span><span>{{ post.read_time }} min read</span><span>·</span><span>{{ post.status }}</span></div>
+    <div class="tag-cloud" style="margin-bottom:1.2rem">{% for tag in post.tags %}<a class="tag" href="{{ base }}/writeups/?tag={{ tag | urlencode }}">{{ tag }}</a>{% endfor %}</div>
+    <div class="prose">{{ post.content | safe }}</div>
+    <nav class="prev-next" aria-label="เลื่อน post">
+      {% if prev_post %}<a class="pager" href="{{ prev_post.url }}"><span>previous</span><b>{{ prev_post.title }}</b></a>{% else %}<div class="pager disabled"><span>previous</span><b>เริ่มต้นชุดนี้แล้ว</b></div>{% endif %}
+      {% if next_post %}<a class="pager" href="{{ next_post.url }}"><span>next</span><b>{{ next_post.title }}</b></a>{% else %}<div class="pager disabled"><span>next</span><b>จบชุดนี้แล้ว</b></div>{% endif %}
+    </nav>
+  </div>
+  <aside class="toc" aria-label="สารบัญ">
+    <h2>On this page</h2>
+    <ol>{% for heading in post.toc %}<li><a href="#{{ heading.id }}">{{ heading.text }}</a></li>{% endfor %}</ol>
+  </aside>
+</article>
+{% endblock %}
