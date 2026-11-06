@@ -1,0 +1,9 @@
+<nav class="lang-switch" aria-label="Language / ภาษา">
+  {% if current_language == 'en' %}
+    <span class="lang-option is-active" aria-current="page">EN</span>
+    <a class="lang-option" href="{{ th_url }}" hreflang="th" lang="th">ไทย</a>
+  {% else %}
+    <a class="lang-option" href="{{ en_url }}" hreflang="en" lang="en">EN</a>
+    <span class="lang-option is-active" aria-current="page" lang="th">ไทย</span>
+  {% endif %}
+</nav>

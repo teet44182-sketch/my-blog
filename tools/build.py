@@ -23,6 +23,13 @@ SITE_DESCRIPTION = 'Pentest labs, CTF writeups, and attack notes — measured, r
 BASE_PATH = os.environ.get('SITE_BASE', '').rstrip('/')
 if BASE_PATH and not BASE_PATH.startswith('/'):
     BASE_PATH = f'/{BASE_PATH}'
+
+
+def absolute_url(path: str) -> str:
+    normalized = path if path.startswith('/') else f'/{path}'
+    if BASE_PATH and normalized.startswith(f'{BASE_PATH}/'):
+        normalized = normalized[len(BASE_PATH):] or '/'
+    return f'{SITE_URL}{normalized}'
 PLATFORMS = {
     'hack-the-box': {
         'name': 'Hack The Box',
@@ -41,6 +48,8 @@ PLATFORMS = {
     },
 }
 PLATFORM_ORDER = ['hack-the-box', 'portswigger', 'ctf']
+LANGUAGE_ORDER = ['en', 'th']
+LANGUAGE_FILENAME = re.compile(r'^(?P<slug>[a-z0-9][a-z0-9-]*)\.(?P<language>en|th)\.md$')
 
 
 def slugify(text: str) -> str:
@@ -160,6 +169,116 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     return data, match.group(2)
 
 
+def parse_language_filename(path: Path) -> tuple[str, str]:
+    match = LANGUAGE_FILENAME.fullmatch(path.name)
+    if not match:
+        raise ValueError(f'{path}: writeup files must be named <slug>.en.md or <slug>.th.md')
+    return match.group('slug'), match.group('language')
+
+
+def is_ready_variant(variant: dict) -> bool:
+    return str(variant.get('status', 'Draft')).strip().lower() != 'draft'
+
+
+def normalized_tags(tags: list[str]) -> list[str]:
+    return sorted({str(tag).strip().lower() for tag in tags})
+
+
+def variant_source_paths(variants: list[dict]) -> str:
+    return ', '.join(sorted(variant['source_path'] for variant in variants))
+
+
+def validate_translation_pair(platform: str, slug: str, en: dict, th: dict) -> None:
+    en_tags = normalized_tags(en['tags'])
+    th_tags = normalized_tags(th['tags'])
+    mismatches = []
+    if en['date'] != th['date']:
+        mismatches.append(f"date en={en['date']} th={th['date']}")
+    if str(en['difficulty']).strip().lower() != str(th['difficulty']).strip().lower():
+        mismatches.append(f"difficulty en={en['difficulty']!r} th={th['difficulty']!r}")
+    if en_tags != th_tags:
+        mismatches.append(f'tags en={en_tags} th={th_tags}')
+    if mismatches:
+        details = '; '.join(mismatches)
+        raise ValueError(
+            f'{platform}/{slug}: EN/TH metadata mismatch: {details}; '
+            f'files: {variant_source_paths([en, th])}'
+        )
+
+
+def language_urls(platform: str, slug: str) -> tuple[str, str]:
+    en_url = f'{BASE_PATH}/writeups/{platform}/{slug}/'
+    return en_url, f'{en_url}th/'
+
+
+def public_url(variant: dict, en_url: str, th_url: str) -> str:
+    return en_url if variant['language'] == 'en' else th_url
+
+
+def build_public_group(platform: str, slug: str, variants: list[dict]) -> dict | None:
+    variants_by_language: dict[str, dict] = {}
+    total_language_files = []
+    for variant in variants:
+        language = variant['language']
+        if language in variants_by_language:
+            total_language_files.append(variant['source_path'])
+            other = variants_by_language[language]['source_path']
+            raise ValueError(f'{platform}/{slug}: duplicate {language} variants: {other}, {variant["source_path"]}')
+        variants_by_language[language] = variant
+
+    en = variants_by_language.get('en')
+    th = variants_by_language.get('th')
+    if en and th:
+        validate_translation_pair(platform, slug, en, th)
+
+    en_ready = bool(en and is_ready_variant(en))
+    th_ready = bool(th and is_ready_variant(th))
+    if not (en_ready or th_ready):
+        return None
+
+    primary = en if en_ready else th
+    public_language = 'en' if en_ready else 'th'
+    en_url, th_url = language_urls(platform, slug)
+    group = dict(primary)
+    group.update({
+        'variants': variants_by_language,
+        'has_en': bool(en),
+        'has_th': bool(th),
+        'en_ready': en_ready,
+        'th_ready': th_ready,
+        'public_language': public_language,
+        'en_url': en_url,
+        'th_url': th_url,
+        'url': en_url if en_ready else th_url,
+        'section_url': f'{BASE_PATH}/writeups/{platform}/',
+        'language_badge': 'EN only' if not th_ready else ('TH only' if not en_ready else ''),
+    })
+    return group
+
+
+def collect_public_groups() -> list[dict]:
+    all_markdown = sorted(CONTENT.rglob('*.md'))
+    invalid = [path for path in all_markdown if not LANGUAGE_FILENAME.fullmatch(path.name)]
+    if invalid:
+        listing = '\n'.join(f'  - {path.relative_to(ROOT).as_posix()}' for path in invalid)
+        raise ValueError(
+            'writeup filenames must be <slug>.en.md or <slug>.th.md:\n' + listing
+        )
+
+    variants = [normalize_post(path) for path in all_markdown]
+    groups_raw: dict[tuple[str, str], list[dict]] = {}
+    for variant in variants:
+        groups_raw.setdefault((variant['platform'], variant['slug']), []).append(variant)
+
+    groups = []
+    for (platform, slug), grouped_variants in groups_raw.items():
+        group = build_public_group(platform, slug, grouped_variants)
+        if group is not None:
+            groups.append(group)
+    groups.sort(key=lambda post: post['date'], reverse=True)
+    return groups
+
+
 def platform_from_path(path: Path) -> str:
     relative = path.relative_to(CONTENT)
     if len(relative.parts) < 2:
@@ -197,9 +316,12 @@ def normalize_post(path: Path) -> dict:
     raw = path.read_text(encoding='utf-8')
     meta, markdown = parse_frontmatter(raw)
 
-    slug = meta.get('slug') or path.stem
+    filename_slug, language = parse_language_filename(path)
+    slug = str(meta.get('slug') or filename_slug)
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', slug):
         raise ValueError(f'{path}: slug must use lowercase letters, numbers and hyphens only')
+    if slug != filename_slug:
+        raise ValueError(f'{path}: filename slug is {filename_slug!r}, but frontmatter slug is {slug!r}')
 
     platform = normalize_platform(meta.get('platform'), path)
     platform_info = PLATFORMS[platform]
@@ -215,10 +337,12 @@ def normalize_post(path: Path) -> dict:
     else:
         parsed_date = datetime.strptime(str(raw_date), '%Y-%m-%d').date()
 
+    en_url, th_url = language_urls(platform, slug)
     return {
         'title': meta['title'],
         'slug': slug,
-        'url': f'{BASE_PATH}/writeups/{platform}/{slug}/',
+        'language': language,
+        'url': en_url if language == 'en' else th_url,
         'section_url': f'{BASE_PATH}/writeups/{platform}/',
         'date': parsed_date.isoformat(),
         'display_date': parsed_date.strftime('%d %b %Y'),
@@ -262,8 +386,7 @@ def main() -> None:
     )
     env.filters['urlencode'] = urlencode
 
-    posts = [normalize_post(path) for path in sorted(CONTENT.rglob('*.md'))]
-    posts.sort(key=lambda post: post['date'], reverse=True)
+    posts = collect_public_groups()
 
     all_categories = Counter(post['category'] for post in posts)
     tags = Counter(tag for post in posts for tag in post['tags'])
@@ -328,15 +451,57 @@ def main() -> None:
         position = same_platform.index(post)
         prev_post = same_platform[position + 1] if position + 1 < len(same_platform) else None
         next_post = same_platform[position - 1] if position > 0 else None
-        write(DIST / 'writeups' / post['platform'] / post['slug'] / 'index.html', env.get_template('post.html').render(
-            title=f"{post['title']} — {SITE_TITLE}",
-            description=post['summary'] or SITE_DESCRIPTION,
-            nav='writeups',
-            post=post,
-            prev_post=prev_post,
-            next_post=next_post,
-            **common,
-        ))
+        for language in LANGUAGE_ORDER:
+            current = post['variants'].get(language)
+            current_ready = bool(current and is_ready_variant(current))
+            if current_ready:
+                current = dict(current)
+                current.update({
+                    'current_language': language,
+                    'en_url': post['en_url'],
+                    'th_url': post['th_url'],
+                    'en_ready': post['en_ready'],
+                    'th_ready': post['th_ready'],
+                    'en_absolute': absolute_url(post['en_url']),
+                    'th_absolute': absolute_url(post['th_url']),
+                    'default_absolute': absolute_url(post['url']),
+                    'canonical_url': absolute_url(post['en_url'] if language == 'en' else post['th_url']),
+                })
+                output_path = DIST / 'writeups' / post['platform'] / post['slug']
+                if language == 'th':
+                    output_path = output_path / 'th'
+                write(output_path / 'index.html', env.get_template('post.html').render(
+                    title=f"{current['title']} — {SITE_TITLE}",
+                    description=current['summary'] or SITE_DESCRIPTION,
+                    nav='writeups',
+                    page_lang=language,
+                    post=current,
+                    prev_post=prev_post,
+                    next_post=next_post,
+                    **common,
+                ))
+                continue
+
+            other_language = 'th' if language == 'en' else 'en'
+            if not post[f'{other_language}_ready']:
+                continue
+            output_path = DIST / 'writeups' / post['platform'] / post['slug']
+            if language == 'th':
+                output_path = output_path / 'th'
+            write(output_path / 'index.html', env.get_template('translation_pending.html').render(
+                title=f'{"ไทย" if language == "th" else "English"} version pending — {SITE_TITLE}',
+                description='This post is being written and translated manually.',
+                nav='writeups',
+                page_lang=language,
+                pending_language=language,
+                available_language=other_language,
+                available_url=post[f'{other_language}_url'],
+                current_language=language,
+                en_url=post['en_url'],
+                th_url=post['th_url'],
+                group=post,
+                **common,
+            ))
 
     about_skills = [
         {'name': 'Web Exploitation', 'value': 85},
@@ -361,8 +526,8 @@ def main() -> None:
     ))
 
     rss_items = '\n'.join(
-        f'    <item><title>{html.escape(post["title"])}</title><link>{SITE_URL}{post["url"]}</link>'
-        f'<guid isPermaLink="true">{SITE_URL}{post["url"]}</guid>'
+        f'    <item><title>{html.escape(post["title"])}</title><link>{absolute_url(post["url"])}</link>'
+        f'<guid isPermaLink="true">{absolute_url(post["url"])}</guid>'
         f'<description>{html.escape(post["summary"])}</description>'
         f'<pubDate>{datetime.strptime(post["date"], "%Y-%m-%d").strftime("%a, %d %b %Y 00:00:00 GMT")}</pubDate></item>'
         for post in posts
@@ -373,15 +538,20 @@ def main() -> None:
     <title>{html.escape(SITE_TITLE)}</title>
     <description>{html.escape(SITE_DESCRIPTION)}</description>
     <link>{SITE_URL}/</link>
-    <language>th</language>
+    <language>en-US</language>
 {rss_items}
   </channel>
 </rss>
 '''
     write(DIST / 'rss.xml', rss)
 
-    urls = ['/', '/writeups/', '/about/'] + [platform['url'] for platform in platforms] + [post['url'] for post in posts]
-    urlset = '\n'.join(f'  <url><loc>{SITE_URL}{url}</loc></url>' for url in urls)
+    urls = ['/', '/writeups/', '/about/'] + [platform['url'] for platform in platforms]
+    for post in posts:
+        if post['en_ready']:
+            urls.append(post['en_url'])
+        if post['th_ready']:
+            urls.append(post['th_url'])
+    urlset = '\n'.join(f'  <url><loc>{absolute_url(url)}</loc></url>' for url in urls)
     write(DIST / 'sitemap.xml', f'''<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 {urlset}

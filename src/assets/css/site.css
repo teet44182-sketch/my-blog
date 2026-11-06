@@ -137,6 +137,25 @@ tr:last-child td { border-bottom: 0; }
 .pager b { display: block; margin-top: .3rem; }
 .pager.disabled { opacity: .45; }
 
+.post-topline { margin: .65rem 0 .85rem; }
+.lang-switch { display: inline-flex; align-items: center; gap: .2rem; padding: .2rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); }
+.lang-option { min-width: 4.25rem; padding: .42rem .7rem; border-radius: 999px; color: var(--muted); font-family: var(--font-mono); font-size: .75rem; line-height: 1; text-align: center; white-space: nowrap; transition: color var(--duration) var(--ease-out), background var(--duration) var(--ease-out), transform var(--duration) var(--ease-out); }
+a.lang-option:hover { color: var(--text); background: var(--surface); transform: translateY(-1px); }
+.lang-option.is-active { color: var(--bg); background: var(--text); }
+
+.language-badge { font-family: var(--font-mono); font-size: .68rem; padding: .2rem .45rem; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--muted); }
+
+.translation-pending { display: grid; place-items: center; min-height: 45vh; padding: 1rem 0; }
+.translation-card { width: min(100%, 680px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: clamp(1.25rem, 4vw, 2rem); }
+.translation-card h1 { font-family: var(--font-display); font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.18; letter-spacing: -.03em; margin: .35rem 0 0; }
+.translation-lead { margin: 1.1rem 0 .35rem; line-height: 1.8; color: var(--text); }
+.translation-note { color: var(--muted); line-height: 1.7; margin: .4rem 0 0; }
+.translation-actions { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1.25rem; }
+.button-primary, .button-ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: .55rem .85rem; border-radius: 8px; font-family: var(--font-mono); font-size: .82rem; border: 1px solid var(--line-strong); transition: transform var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), background var(--duration) var(--ease-out); }
+.button-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.button-ghost { background: var(--surface); color: var(--text); }
+.button-primary:hover, .button-ghost:hover { transform: translateY(-1px); }
+
 .about-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 2rem; }
 .avatar { width: 160px; height: 160px; border-radius: 24px; border: 1px solid var(--line); background: var(--surface); }
 .skill-row { display: grid; gap: .3rem; margin: .9rem 0; }

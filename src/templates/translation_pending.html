@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block head %}
+<meta name="robots" content="noindex,nofollow,noarchive">
+{% endblock %}
+{% block content %}
+<article class="translation-pending">
+  <div class="translation-card">
+    <p class="eyebrow">TRANSLATION PENDING · {{ pending_language | upper }}</p>
+    <h1>{% if pending_language == 'th' %}ไทย version กำลังเขียน{% else %}English version is being written{% endif %}</h1>
+    <div class="post-topline">{% include "_lang_switch.html" %}</div>
+    <p class="translation-lead">เรายังไม่อยากเอา machine translation แบบลวกๆ ใส่ให้อ่านแล้วเข้าใจผิด เรากำลังเขียนอีกภาษาให้ถูกต้องเอง</p>
+    <p class="translation-note">พอเสร็จแล้ว URL นี้จะกลายเป็นเนื้อหาฉบับเต็มทันที — ไม่ต้องสมัครอะไรหรือกดรับแจ้งเตือน</p>
+    <div class="translation-actions">
+      {% if available_language == 'en' %}
+        <a class="button-primary" href="{{ available_url }}">Read English →</a>
+      {% else %}
+        <a class="button-primary" href="{{ available_url }}">อ่านภาษาไทย →</a>
+      {% endif %}
+      <a class="button-ghost" href="{{ base }}/writeups/">All writeups</a>
+    </div>
+  </div>
+</article>
+{% endblock %}

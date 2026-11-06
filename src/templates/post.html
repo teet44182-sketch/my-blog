@@ -1,9 +1,16 @@
 {% extends "base.html" %}
+{% block head %}
+<link rel="canonical" href="{{ post.canonical_url }}">
+{% if post.en_ready %}<link rel="alternate" hreflang="en" href="{{ post.en_absolute }}">{% endif %}
+{% if post.th_ready %}<link rel="alternate" hreflang="th" href="{{ post.th_absolute }}">{% endif %}
+<link rel="alternate" hreflang="x-default" href="{{ post.default_absolute }}">
+{% endblock %}
 {% block content %}
 <article class="post-layout">
   <div>
     <p class="eyebrow">{{ post.category }} · {{ post.platform }} · {{ post.difficulty }}</p>
     <h1 style="font-family:var(--font-display);letter-spacing:-.03em;line-height:1.15;margin:.35rem 0 0">{{ post.title }}</h1>
+    <div class="post-topline">{% include "_lang_switch.html" %}</div>
     <div class="post-meta" style="margin:.8rem 0 1rem"><time datetime="{{ post.date }}">{{ post.display_date }}</time><span>·</span><span>{{ post.read_time }} min read</span><span>·</span><span>{{ post.status }}</span></div>
     <div class="tag-cloud" style="margin-bottom:1.2rem">{% for tag in post.tags %}<a class="tag" href="{{ base }}/writeups/?tag={{ tag | urlencode }}">{{ tag }}</a>{% endfor %}</div>
     <div class="prose">{{ post.content | safe }}</div>

@@ -136,6 +136,23 @@ def open_file(path: Path) -> None:
     subprocess.Popen(['xdg-open', str(path)])
 
 
+def parse_frontmatter_file(path: Path) -> dict:
+    text = path.read_text(encoding='utf-8')
+    match = re.match(r'^---\s*\n(.*?)\n---\s*\n?', text, flags=re.DOTALL)
+    if not match:
+        raise SystemExit(f'{path}: ไม่เจอ YAML frontmatter')
+    try:
+        return yaml.safe_load(match.group(1)) or {}
+    except yaml.YAMLError as exc:
+        raise SystemExit(f'{path}: YAML ไม่ถูกต้อง: {exc}') from None
+
+
+def frontmatter_date(value: object) -> str:
+    if hasattr(value, 'isoformat'):
+        return str(value.isoformat()).split('T')[0]
+    return str(value or '').strip().split('T')[0]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Create a new pentest writeup markdown file.')
     parser.add_argument('--platform', choices=list(PLATFORMS), help='hack-the-box | portswigger | ctf')
@@ -148,23 +165,54 @@ def main() -> None:
     parser.add_argument('--date', default=None, help='YYYY-MM-DD; default today')
     parser.add_argument('--open', action='store_true', help='Open the created file in VS Code/default editor')
     parser.add_argument('--force', action='store_true', help='Overwrite existing file')
+    parser.add_argument('--language', choices=['en', 'th'], default='en', help='Output language; files become <slug>.en.md or <slug>.th.md')
+    parser.add_argument('--from-en', metavar='SLUG', help='Create TH file from existing <SLUG>.en.md; only valid with --language th')
     args = parser.parse_args()
 
     platform = choose_platform(args.platform)
-    title = ask(args.title, 'Title', required=True)
-    difficulty = choose_difficulty(args.difficulty)
-    status = choose_status(args.status)
-    tags = parse_tags(args.tags)
-    summary = ask(args.summary, 'Summary (optional)')
-    post_date = args.date or date.today().isoformat()
-    slug = build_slug(platform, title, args.slug)
+    source_meta: dict = {}
+    from_en_slug = slugify(args.from_en or '')
+
+    if args.from_en:
+        if args.language != 'th':
+            raise SystemExit('--from-en ใช้ได้เฉพาะกับ --language th')
+        if not from_en_slug:
+            raise SystemExit('--from-en ต้องเป็น slug เช่น htb-faaaround')
+        if args.slug and slugify(args.slug) != from_en_slug:
+            raise SystemExit('--slug ต้องตรงกับ --from-en เพื่อให้คู่ EN/TH เป็นโพสต์เดียวกัน')
+
+        source_path = CONTENT / platform / f'{from_en_slug}.en.md'
+        if not source_path.exists():
+            raise SystemExit(f'ไม่เจอ English source: {source_path}')
+        source_meta = parse_frontmatter_file(source_path)
+        source_platform = str(source_meta.get('platform') or platform).strip().lower().replace('_', '-').replace(' ', '-')
+        if source_platform != platform:
+            raise SystemExit(f'platform mismatch: source เป็น {source_platform!r} แต่เลือก {platform!r}')
+
+        slug = from_en_slug
+        title = ask(args.title, 'Title (Thai)', required=True)
+        post_date = args.date or frontmatter_date(source_meta.get('date')) or date.today().isoformat()
+        difficulty = args.difficulty or str(source_meta.get('difficulty') or 'Unknown')
+        if difficulty not in DIFFICULTIES:
+            raise SystemExit(f'difficulty ใน source ไม่ถูกต้อง: {difficulty}')
+        status = args.status or 'Draft'
+        tags = parse_tags(args.tags) if args.tags is not None else [str(tag) for tag in (source_meta.get('tags') or [])]
+        summary = ask(args.summary, 'Summary (Thai, optional)')
+    else:
+        title = ask(args.title, 'Title', required=True)
+        difficulty = choose_difficulty(args.difficulty)
+        status = choose_status(args.status)
+        tags = parse_tags(args.tags)
+        summary = ask(args.summary, 'Summary (optional)')
+        post_date = args.date or date.today().isoformat()
+        slug = build_slug(platform, title, args.slug)
 
     try:
         datetime_value = date.fromisoformat(post_date)
     except ValueError:
         raise SystemExit('--date ต้องเป็น YYYY-MM-DD') from None
 
-    target = CONTENT / platform / f'{slug}.md'
+    target = CONTENT / platform / f'{slug}.{args.language}.md'
     if target.exists() and not args.force:
         raise SystemExit(f'ไฟล์มีอยู่แล้ว: {target} (ใช้ --force ถ้าตั้งใจทับ)')
 
@@ -175,6 +223,7 @@ def main() -> None:
         'date': datetime_value.isoformat(),
         'platform': platform,
         'category': PLATFORMS[platform]['name'],
+        'language': args.language,
         'tags': tags,
         'difficulty': difficulty,
         'status': status,
