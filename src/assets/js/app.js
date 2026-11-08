@@ -28,6 +28,15 @@
   });
   syncThemeButton();
 
+  if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+    try {
+      const basePath = window.__SITE_BASE__ || '';
+      const swUrl = new URL(`${basePath}/sw.js`, window.location.origin).href;
+      const scope = new URL(`${basePath}/`, window.location.origin).href;
+      window.addEventListener('load', () => { navigator.serviceWorker.register(swUrl, { scope }).catch(() => {}); });
+    } catch (_) {}
+  }
+
   const navToggle = document.querySelector('[data-nav-toggle]');
   const siteNav = document.querySelector('[data-site-nav]');
   navToggle?.addEventListener('click', () => {

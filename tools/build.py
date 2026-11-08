@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import html
 import math
 import os
@@ -59,12 +60,20 @@ def slugify(text: str) -> str:
     return text or 'section'
 
 
-def resolve_image_url(src: str, asset_base: str) -> str:
+def resolve_image_url(src: str, asset_base: str, asset_root: Path | None = None) -> str:
     if src.startswith(('http://', 'https://', '/', 'data:')):
         return src
     normalized = src[2:] if src.startswith('./') else src
     if normalized.startswith('assets/'):
-        return f'{asset_base}{normalized}' if asset_base else f'/{normalized}'
+        url = f'{asset_base}{normalized}' if asset_base else f'/{normalized}'
+        if asset_root is not None:
+            image_path = asset_root / normalized
+            try:
+                version = hashlib.sha256(image_path.read_bytes()).hexdigest()[:8]
+                return f'{url}?v={version}'
+            except OSError:
+                return url
+        return url
     raise ValueError(f'relative image path must start with assets/: {src!r}')
 
 
@@ -88,7 +97,7 @@ def image_tag(alt: str, src: str, asset_base: str, asset_root: Path | None) -> s
         if normalized.startswith('assets/'):
             dimensions = image_dimensions(asset_root / normalized)
     size_attrs = f' width="{dimensions[0]}" height="{dimensions[1]}"' if dimensions else ''
-    return f'<img src="{resolve_image_url(src, asset_base)}" alt="{alt}"{size_attrs} loading="lazy" decoding="async">'
+    return f'<img src="{resolve_image_url(src, asset_base, asset_root)}" alt="{alt}"{size_attrs} loading="lazy" decoding="async">'
 
 
 def link_tag(label: str, href: str) -> str:
@@ -450,6 +459,7 @@ def main() -> None:
         shutil.rmtree(DIST)
     DIST.mkdir(parents=True)
     shutil.copytree(SRC / 'assets', DIST / 'assets')
+    shutil.copyfile(SRC / 'assets' / 'sw.js', DIST / 'sw.js')
 
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES)),
@@ -482,10 +492,11 @@ def main() -> None:
             'url': f'{BASE_PATH}/writeups/{key}/',
         })
 
-    asset_version = max(
-        (SRC / 'assets' / 'css' / 'site.css').stat().st_mtime_ns,
-        (SRC / 'assets' / 'js' / 'app.js').stat().st_mtime_ns,
-    )
+    asset_version = hashlib.sha256(
+        (SRC / 'assets' / 'css' / 'site.css').read_bytes()
+        + b'\n--app.js--\n'
+        + (SRC / 'assets' / 'js' / 'app.js').read_bytes()
+    ).hexdigest()[:12]
     about_photo_file = next((name for name in ('about.jpg', 'about.png', 'about.webp') if (SRC / 'assets' / 'img' / name).is_file()), None)
     about_photo = f'{BASE_PATH}/assets/img/{about_photo_file}' if about_photo_file else ''
     common = {
