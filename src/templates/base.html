@@ -6,35 +6,54 @@
   <title>{{ title }}</title>
   <meta name="description" content="{{ description }}">
   {% block head %}{% endblock %}
-  <link rel="icon" href="{{ base }}/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="{{ asset_base }}/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Kanit:wght@400;500;600&family=Sarabun:wght@400;500;600&family=Cascadia+Code&display=swap">
-  <link rel="stylesheet" href="{{ base }}/assets/css/site.css">
+  <link rel="stylesheet" href="{{ asset_base }}/assets/css/site.css?v={{ asset_version }}">
   <script>window.__SITE_BASE__ = {{ base | tojson }};</script>
   <script>try{document.documentElement.dataset.theme=localStorage.getItem('profile-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch(e){}</script>
-  <script src="{{ base }}/assets/js/app.js" defer></script>
+  <script>try{if(sessionStorage.getItem('lang-switching')){document.documentElement.classList.add('no-entrance');sessionStorage.removeItem('lang-switching');}}catch(e){}</script>
+  <script src="{{ asset_base }}/assets/js/app.js?v={{ asset_version }}" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">ข้ามไปเนื้อหา</a>
+  <a class="skip-link" href="#main">{% if page_lang == 'th' %}ข้ามไปเนื้อหา{% else %}Skip to content{% endif %}</a>
   <header class="site-header">
     <div class="header-inner">
       <a class="brand" href="{{ base }}/" aria-label="my-blog home"><b>my-blog</b></a>
-      <nav class="site-nav" data-site-nav aria-label="เมนูหลัก">
-        <a class="nav-link" href="{{ base }}/" {% if nav == 'home' %}aria-current="page"{% endif %}>HOME</a>
-        <a class="nav-link" href="{{ base }}/writeups/" {% if nav == 'writeups' %}aria-current="page"{% endif %}>WRITEUPS</a>
-        <a class="nav-link" href="{{ base }}/about/" {% if nav == 'about' %}aria-current="page"{% endif %}>ABOUT</a>
-        <a class="nav-link" href="{{ base }}/rss.xml">RSS</a>
+      <nav class="site-nav" id="site-nav" data-site-nav aria-label="{% if page_lang == 'th' %}เมนูหลัก{% else %}Main menu{% endif %}">
+        <a class="nav-link" href="{{ base }}/" {% if nav == 'home' %}aria-current="page"{% endif %}>{% if page_lang == 'th' %}หน้าแรก{% else %}HOME{% endif %}</a>
+        <a class="nav-link" href="{{ base }}/about/" {% if nav == 'about' %}aria-current="page"{% endif %}>{% if page_lang == 'th' %}เกี่ยวกับ{% else %}ABOUT{% endif %}</a>
+        <a class="nav-link" href="{{ base }}/writeups/" {% if nav == 'writeups' %}aria-current="page"{% endif %}>{% if page_lang == 'th' %}writeups{% else %}WRITEUPS{% endif %}</a>
+        <a class="nav-link" href="{{ base }}/history/" {% if nav == 'history' %}aria-current="page"{% endif %}>{% if page_lang == 'th' %}ประวัติ{% else %}HISTORY{% endif %}</a>
       </nav>
       <div class="header-actions">
-        <button class="icon-button" type="button" data-theme-toggle aria-label="สลับโหมดสี">dark</button>
-        <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="site-nav">menu</button>
+        {% if lang_en_url and lang_th_url %}
+        <nav class="lang-switch lang-switch-header" data-lang-switch data-lang="{{ page_lang }}" aria-label="Language / ภาษา">
+          <span class="lang-slider" aria-hidden="true"></span>
+          {% if page_lang == 'th' %}
+          <a class="lang-option" href="{{ lang_en_url }}" hreflang="en" lang="en">EN</a>
+          <span class="lang-option is-active" aria-current="page" lang="th">ไทย</span>
+          {% else %}
+          <span class="lang-option is-active" aria-current="page">EN</span>
+          <a class="lang-option" href="{{ lang_th_url }}" hreflang="th" lang="th">ไทย</a>
+          {% endif %}
+        </nav>
+        {% endif %}
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="{% if page_lang == 'th' %}สลับธีม{% else %}Switch theme{% endif %}" aria-pressed="false">
+          <span class="theme-label theme-label-to-light" aria-hidden="true">{% if page_lang == 'th' %}สว่าง{% else %}light{% endif %}</span>
+          <span class="theme-label theme-label-to-dark" aria-hidden="true">{% if page_lang == 'th' %}มืด{% else %}dark{% endif %}</span>
+        </button>
+        <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="site-nav">{% if page_lang == 'th' %}เมนู{% else %}menu{% endif %}</button>
       </div>
     </div>
+    <div class="progress-bar" id="progress-bar" aria-hidden="true"></div>
   </header>
   <main id="main">{% block content %}{% endblock %}</main>
   <footer class="site-footer">
     <div class="footer-inner">
       <span>© <span data-year>2026</span> my-blog</span>
-      <div><a href="{{ base }}/rss.xml">RSS</a> · <a href="{{ base }}/sitemap.xml">Sitemap</a> · <a href="{{ base }}/robots.txt">robots.txt</a></div>
+      {% if post_count and last_updated %}<span>{% if page_lang == 'th' %}{{ post_count }} บทความ · อัปเดต {{ last_updated }}{% else %}{{ post_count }} writeup{{ 's' if post_count != 1 else '' }} · updated {{ last_updated }}{% endif %}</span>{% endif %}
     </div>
   </footer>
 </body>

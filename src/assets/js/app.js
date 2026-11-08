@@ -1,21 +1,28 @@
 (() => {
   'use strict';
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
   document.documentElement.dataset.theme = document.documentElement.dataset.theme || 'light';
   document.querySelectorAll('[data-year]').forEach((el) => { el.textContent = String(new Date().getFullYear()); });
 
   const themeToggle = document.querySelector('[data-theme-toggle]');
+  let themeTimer = 0;
   const syncThemeButton = () => {
     if (!themeToggle) return;
     const isDark = document.documentElement.dataset.theme === 'dark';
     themeToggle.setAttribute('aria-pressed', String(isDark));
-    themeToggle.textContent = isDark ? 'light' : 'dark';
+    themeToggle.setAttribute('aria-label', isDark ? 'เปลี่ยนเป็นธีมสว่าง' : 'เปลี่ยนเป็นธีมมืด');
   };
   themeToggle?.addEventListener('click', () => {
-    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
+    const root = document.documentElement;
+    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    if (!prefersReduced) {
+      root.classList.add('theme-transition');
+      void root.offsetWidth;
+      window.clearTimeout(themeTimer);
+      themeTimer = window.setTimeout(() => root.classList.remove('theme-transition'), 2500);
+    }
+    root.dataset.theme = next;
     try { localStorage.setItem('profile-theme', next); } catch (_) {}
     syncThemeButton();
   });
@@ -38,15 +45,20 @@
     progress.id = 'progress-bar';
     progress.className = 'progress-bar';
     progress.setAttribute('aria-hidden', 'true');
-    document.body.prepend(progress);
+    (document.querySelector('.site-header') || document.body).append(progress);
   }
+  let progressFrame = 0;
   const updateProgress = () => {
+    progressFrame = 0;
     const doc = document.documentElement;
     const max = doc.scrollHeight - doc.clientHeight;
     progress.style.transform = `scaleX(${max > 0 ? doc.scrollTop / max : 0})`;
   };
-  document.addEventListener('scroll', updateProgress, { passive: true });
-  window.addEventListener('resize', updateProgress);
+  const requestProgress = () => {
+    if (!progressFrame) progressFrame = window.requestAnimationFrame(updateProgress);
+  };
+  document.addEventListener('scroll', requestProgress, { passive: true });
+  window.addEventListener('resize', requestProgress);
 
   const siteBase = window.__SITE_BASE__ || '';
   const stripBase = (value) => {
@@ -62,6 +74,38 @@
     if (!path.startsWith('/')) path = `/${path}`;
     return stripBase(path);
   };
+  const positionNavIndicator = () => {
+    const nav = document.querySelector('.site-nav');
+    if (!nav) return;
+    const active = nav.querySelector('.nav-link[aria-current="page"]');
+    if (!active || !active.offsetParent) {
+      nav.style.setProperty('--indicator-left', '0px');
+      nav.style.setProperty('--indicator-width', '0px');
+      return;
+    }
+    nav.style.setProperty('--indicator-left', `${active.offsetLeft}px`);
+    nav.style.setProperty('--indicator-width', `${active.offsetWidth}px`);
+  };
+
+  const positionLangSlider = () => {
+    const sw = document.querySelector('.lang-switch');
+    if (!sw) return;
+    const active = sw.querySelector('.lang-option.is-active');
+    if (!active || !active.offsetParent) {
+      sw.style.setProperty('--lang-left', '.15rem');
+      sw.style.setProperty('--lang-width', '2.9rem');
+      return;
+    }
+    sw.style.setProperty('--lang-left', `${active.offsetLeft}px`);
+    sw.style.setProperty('--lang-width', `${active.offsetWidth}px`);
+  };
+
+  document.querySelectorAll('.lang-switch a.lang-option').forEach((link) => {
+    link.addEventListener('click', () => {
+      try { sessionStorage.setItem('lang-switching', '1'); } catch (_) {}
+    });
+  });
+
   const updateNavCurrent = (pathname) => {
     const path = normalizePath(pathname);
     document.querySelectorAll('.site-nav .nav-link[href]').forEach((link) => {
@@ -69,10 +113,12 @@
       let current = false;
       if (href === '/') current = path === '/';
       else if (href === '/writeups/') current = path.startsWith('/writeups/') || path.startsWith('/posts/');
+      else if (href === '/history/') current = path.startsWith('/history/');
       else if (href === '/about/') current = path.startsWith('/about/');
       if (current) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
+    positionNavIndicator();
   };
 
   const initArchive = (scope) => {
@@ -80,51 +126,43 @@
     const list = scope.querySelector('[data-archive-list]');
     if (!search || !list) return;
 
-    const items = Array.from(list.querySelectorAll('.post-item'));
+    const entries = Array.from(list.querySelectorAll('.post-item')).map((item) => ({
+      item,
+      haystack: [
+        item.textContent || '',
+        item.dataset.title || '',
+        item.dataset.tags || '',
+        item.dataset.category || '',
+        item.dataset.difficulty || '',
+        item.dataset.platform || ''
+      ].join(' ').toLowerCase()
+    }));
     const count = scope.querySelector('#result-count');
     const empty = scope.querySelector('#empty-state');
-    const filterButtons = Array.from(scope.querySelectorAll('[data-filter]'));
-    let activeFilter = 'all';
+    let filterFrame = 0;
 
     const apply = () => {
+      filterFrame = 0;
       const query = search.value.trim().toLowerCase();
       let visible = 0;
-      items.forEach((item) => {
-        const haystack = [
-          item.textContent || '',
-          item.dataset.title || '',
-          item.dataset.tags || '',
-          item.dataset.category || '',
-          item.dataset.difficulty || '',
-          item.dataset.platform || ''
-        ].join(' ').toLowerCase();
-        const matchesQuery = !query || haystack.includes(query);
-        const matchesFilter = activeFilter === 'all' || item.dataset.category === activeFilter;
-        const show = matchesQuery && matchesFilter;
+      entries.forEach(({ item, haystack }) => {
+        const show = !query || haystack.includes(query);
         item.hidden = !show;
         if (show) visible += 1;
       });
-      if (count) count.textContent = `${visible} writeup${visible === 1 ? '' : 's'} shown`;
+      const isTh = document.documentElement.lang.startsWith('th');
+      if (count) count.textContent = isTh ? `${visible} บทความที่พบ` : `${visible} writeup${visible === 1 ? '' : 's'} shown`;
       empty?.classList.toggle('is-visible', visible === 0);
     };
+    const scheduleApply = () => {
+      if (!filterFrame) filterFrame = window.requestAnimationFrame(apply);
+    };
 
-    search.addEventListener('input', apply);
-    filterButtons.forEach((button) => {
-      button.addEventListener('click', () => {
-        activeFilter = button.dataset.filter || 'all';
-        filterButtons.forEach((candidate) => candidate.classList.toggle('is-active', candidate === button));
-        apply();
-      });
-    });
+    search.addEventListener('input', scheduleApply);
 
     try {
       const params = new URLSearchParams(window.location.search);
-      const categoryParam = params.get('category');
       const tagParam = params.get('tag');
-      if (categoryParam) {
-        activeFilter = categoryParam.toLowerCase();
-        filterButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.filter === activeFilter));
-      }
       if (tagParam) search.value = tagParam;
     } catch (_) {}
     apply();
@@ -148,9 +186,10 @@
     }
   });
 
-  const initMain = (scope) => { initArchive(scope); updateProgress(); };
-  const isNonHtmlPath = (pathname) => /\.(xml|txt|json|pdf|zip|png|jpe?g|gif|svg|ico|webp|css|js|rss)$/i.test(pathname);
+  const initMain = (scope) => { initArchive(scope); requestProgress(); };
+  const isNonHtmlPath = (pathname) => /\.(xml|txt|json|pdf|zip|png|jpe?g|gif|svg|ico|webp|css|js)$/i.test(pathname);
   const internalHtmlUrl = (anchor) => {
+    if (anchor.closest('.lang-switch')) return null;
     if (anchor.target || anchor.hasAttribute('download')) return null;
     let url;
     try { url = new URL(anchor.href, window.location.href); } catch (_) { return null; }
@@ -187,11 +226,7 @@
       const newMain = doc.querySelector('main');
       if (!newMain) throw new Error('missing main');
 
-      currentMain?.classList.add('is-leaving');
-      if (!prefersReduced && currentMain) await wait(150);
-
       const imported = document.importNode(newMain, true);
-      imported.classList.add('is-entering');
       if (currentMain) currentMain.replaceWith(imported);
       else document.body.append(imported);
 
@@ -212,9 +247,6 @@
         window.scrollTo(0, 0);
       }
       initMain(imported);
-      imported.addEventListener('animationend', (event) => {
-        if (event.target === imported) imported.classList.remove('is-entering');
-      }, { once: true });
     } catch (_) {
       window.location.href = url.href;
     } finally {
@@ -235,6 +267,9 @@
   window.addEventListener('popstate', () => { swapTo(window.location.href, { push: false }); });
 
   updateNavCurrent(window.location.pathname);
+  positionLangSlider();
+  window.addEventListener('load', () => { positionNavIndicator(); positionLangSlider(); });
+  window.addEventListener('resize', () => window.requestAnimationFrame(() => { positionNavIndicator(); positionLangSlider(); }));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { positionNavIndicator(); positionLangSlider(); });
   initMain(document);
-  updateProgress();
 })();

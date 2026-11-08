@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-head">
-  <p class="eyebrow">404 / not found</p>
-  <h1>หาไม่เจอใน lab</h1>
-  <p>คำสั่งนี้ไม่เจอ path ที่ต้องการ — ลองกลับไปหน้า Writeups หรือหน้า Home</p>
-  <div class="hero-actions" style="margin-top:1rem"><a class="nav-link" style="border:1px solid var(--line);padding:.5rem .7rem;border-radius:6px" href="{{ base }}/writeups/">Writeups</a><a class="nav-link" style="border:1px solid var(--line);padding:.5rem .7rem;border-radius:6px" href="{{ base }}/">Home</a></div>
+  <h1>{% if page_lang == 'th' %}ไม่พบหน้านี้{% else %}Page not found{% endif %}</h1>
+  <p>{% if page_lang == 'th' %}ลิงก์อาจเปลี่ยนหรือหน้านี้ยังไม่มี{% else %}The link may have moved or never existed.{% endif %}</p>
+  <div class="translation-actions" style="margin-top:1rem">
+    <a class="button-primary" href="{{ base }}/writeups/">{% if page_lang == 'th' %}Writeups{% else %}Writeups{% endif %}</a>
+    <a class="button-ghost" href="{{ base }}/">{% if page_lang == 'th' %}หน้าแรก{% else %}Home{% endif %}</a>
+  </div>
 </section>
 {% endblock %}

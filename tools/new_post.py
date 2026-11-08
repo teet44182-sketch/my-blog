@@ -161,7 +161,7 @@ def main() -> None:
     parser.add_argument('--difficulty', choices=DIFFICULTIES, help='Easy | Medium | Hard | Insane | Unknown')
     parser.add_argument('--status', choices=STATUSES, help='Draft | Solved | Partial')
     parser.add_argument('--tags', default=None, help='Comma-separated tags, e.g. sqli,web,burp')
-    parser.add_argument('--summary', default=None, help='Short summary for listing/RSS')
+    parser.add_argument('--summary', default=None, help='Short summary for listings and history')
     parser.add_argument('--date', default=None, help='YYYY-MM-DD; default today')
     parser.add_argument('--open', action='store_true', help='Open the created file in VS Code/default editor')
     parser.add_argument('--force', action='store_true', help='Overwrite existing file')

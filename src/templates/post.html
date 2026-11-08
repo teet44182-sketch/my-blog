@@ -8,19 +8,18 @@
 {% block content %}
 <article class="post-layout">
   <div>
-    <p class="eyebrow">{{ post.category }} · {{ post.platform }} · {{ post.difficulty }}</p>
+    <p class="eyebrow">{{ post.category }} · {{ post.difficulty }}</p>
     <h1 style="font-family:var(--font-display);letter-spacing:-.03em;line-height:1.15;margin:.35rem 0 0">{{ post.title }}</h1>
-    <div class="post-topline">{% include "_lang_switch.html" %}</div>
-    <div class="post-meta" style="margin:.8rem 0 1rem"><time datetime="{{ post.date }}">{{ post.display_date }}</time><span>·</span><span>{{ post.read_time }} min read</span><span>·</span><span>{{ post.status }}</span></div>
+    <div class="post-meta" style="margin:.8rem 0 1rem"><time datetime="{{ post.date }}">{{ post.display_date }}</time><span>·</span><span>{{ post.read_time }} {% if page_lang == 'th' %}นาที{% else %}min read{% endif %}</span><span>·</span><span>{{ post.status }}</span></div>
     <div class="tag-cloud" style="margin-bottom:1.2rem">{% for tag in post.tags %}<a class="tag" href="{{ base }}/writeups/?tag={{ tag | urlencode }}">{{ tag }}</a>{% endfor %}</div>
     <div class="prose">{{ post.content | safe }}</div>
-    <nav class="prev-next" aria-label="เลื่อน post">
-      {% if prev_post %}<a class="pager" href="{{ prev_post.url }}"><span>previous</span><b>{{ prev_post.title }}</b></a>{% else %}<div class="pager disabled"><span>previous</span><b>เริ่มต้นชุดนี้แล้ว</b></div>{% endif %}
-      {% if next_post %}<a class="pager" href="{{ next_post.url }}"><span>next</span><b>{{ next_post.title }}</b></a>{% else %}<div class="pager disabled"><span>next</span><b>จบชุดนี้แล้ว</b></div>{% endif %}
+    <nav class="prev-next" aria-label="{% if page_lang == 'th' %}เลื่อนบทความ{% else %}More posts{% endif %}">
+      {% if prev_post %}{% set prev_url = prev_post.th_url if page_lang == 'th' else prev_post.url %}<a class="pager" href="{{ prev_url }}"><span>{% if page_lang == 'th' %}ก่อนหน้า{% else %}previous{% endif %}</span><b>{{ prev_post.title }}</b></a>{% else %}<div class="pager disabled"><span>{% if page_lang == 'th' %}ก่อนหน้า{% else %}previous{% endif %}</span><b>{% if page_lang == 'th' %}เริ่มต้นแล้ว{% else %}Start of this platform{% endif %}</b></div>{% endif %}
+      {% if next_post %}{% set next_url = next_post.th_url if page_lang == 'th' else next_post.url %}<a class="pager" href="{{ next_url }}"><span>{% if page_lang == 'th' %}ถัดไป{% else %}next{% endif %}</span><b>{{ next_post.title }}</b></a>{% else %}<div class="pager disabled"><span>{% if page_lang == 'th' %}ถัดไป{% else %}next{% endif %}</span><b>{% if page_lang == 'th' %}จบแล้ว{% else %}End of this platform{% endif %}</b></div>{% endif %}
     </nav>
   </div>
-  <aside class="toc" aria-label="สารบัญ">
-    <h2>On this page</h2>
+  <aside class="toc" aria-label="{% if page_lang == 'th' %}สารบัญ{% else %}Contents{% endif %}">
+    <h2>{% if page_lang == 'th' %}เนื้อหา{% else %}Contents{% endif %}</h2>
     <ol>{% for heading in post.toc %}<li><a href="#{{ heading.id }}">{{ heading.text }}</a></li>{% endfor %}</ol>
   </aside>
 </article>

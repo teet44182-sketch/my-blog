@@ -1,31 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-head">
-  <p class="eyebrow">pentest notes · labs · writeups</p>
-  <h1>Welcome to my blog<br>Cybersec archive</h1>
-  <p>บันทึก Writeups แยกตาม platform: Hack The Box, PortSwigger Web Security Academy และ CTF ที่เข้าร่วม — ไม่ใช่แค่ copy payload แต่ต้องอธิบายได้ว่าทำไม</p>
+  <h1>{% if page_lang == 'th' %}คลัง Pentest{% else %}Pentest archive.{% endif %}</h1>
+  <p>{% if page_lang == 'th' %}writeups และโน้ตแล็บจาก Hack The Box, PortSwigger และ CTF{% else %}Writeups and lab notes from Hack The Box, PortSwigger, and CTFs.{% endif %}</p>
 </section>
 
 <div class="home-layout">
   <div>
-    <div class="result-line">Latest writeups</div>
+    <div class="result-line">{% if page_lang == 'th' %}ล่าสุด{% else %}Recent{% endif %}</div>
     {% if posts %}
     <ol class="post-list">
       {% for post in posts[:8] %}{% include "_post_item.html" %}{% endfor %}
     </ol>
     {% else %}
-    <div class="empty-state is-visible" role="status">ยังไม่มี writeup ในคลัง — ใช้ <code>python tools/new_post.py</code> เพื่อสร้างโพสต์แรก</div>
+    <div class="empty-state is-visible" role="status">{% if page_lang == 'th' %}ยังไม่มี writeup — ใช้ <code>python tools/new_post.py</code> เพื่อสร้างโพสต์แรก{% else %}No writeups yet — run <code>python tools/new_post.py</code> to create the first one.{% endif %}</div>
     {% endif %}
   </div>
   <aside>
     <div class="sidebar">
-      <h2>Profile</h2>
-      <p style="margin:.2rem 0 .8rem;color:var(--muted);line-height:1.65">ผู้เรียนและผู้สนใจด้าน pentest ที่ชอบวัดผลจริง จด failure และทำ setup ให้ repeatable</p>
-      <a class="nav-link" style="display:inline-flex;border:1px solid var(--line);border-radius:6px;padding:.35rem .55rem" href="{{ base }}/about/">about me →</a>
-    </div>
-    <div class="sidebar">
-      <h2>Sections</h2>
-      <ul>{% for platform in platforms %}<li><a href="{{ platform.url }}">{{ platform.name }}</a><span>{{ platform.count }}</span></li>{% endfor %}</ul>
+      <h2>{% if page_lang == 'th' %}หมวดหมู่{% else %}Sections{% endif %}</h2>
+      <ul>{% for platform in platforms %}<li><a href="{{ base }}/writeups/{{ platform.key }}/">{{ platform.name }}</a><span>{{ platform.count }}</span></li>{% endfor %}</ul>
     </div>
     <div class="sidebar">
       <h2>Tags</h2>

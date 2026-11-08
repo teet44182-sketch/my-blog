@@ -1,20 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-head">
-  <p class="eyebrow">{{ page_eyebrow }}</p>
   <h1>{{ page_heading }}</h1>
   <p>{{ page_intro }}</p>
 </section>
-<nav class="filter-row" aria-label="เลือก platform" style="margin-bottom:1rem">
-  <a class="filter-button {% if not active_platform %}is-active{% endif %}" href="{{ base }}/writeups/">All</a>
-  {% for platform in platforms %}<a class="filter-button {% if active_platform == platform.key %}is-active{% endif %}" href="{{ platform.url }}">{{ platform.name }}</a>{% endfor %}
+<nav class="filter-row" aria-label="{% if page_lang == 'th' %}เลือก platform{% else %}Select platform{% endif %}">
+  <a class="filter-button {% if not active_platform %}is-active{% endif %}" href="{{ base }}/writeups/">{% if page_lang == 'th' %}ทั้งหมด{% else %}All{% endif %}</a>
+  {% for platform in platforms %}<a class="filter-button {% if active_platform == platform.key %}is-active{% endif %}" href="{{ base }}/writeups/{{ platform.key }}/">{{ platform.name }}</a>{% endfor %}
 </nav>
-<section class="toolbar" aria-label="ค้นหาและกรอง writeups">
-  <label class="search-wrap" for="archive-search"><span aria-hidden="true">⌕</span><input id="archive-search" type="search" placeholder="เช่น sqli, burp, web, medium…" autocomplete="off"></label>
+<section class="toolbar" aria-label="{% if page_lang == 'th' %}ค้นหาและกรอง writeups{% else %}Search and filter writeups{% endif %}">
+  <label class="search-wrap" for="archive-search">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="archive-search" type="search" placeholder="{% if page_lang == 'th' %}ค้นหา writeups…{% else %}Search writeups…{% endif %}" autocomplete="off">
+  </label>
 </section>
-<div class="result-line" id="result-count">{{ filtered_posts | length }} writeups shown</div>
+<div class="result-line" id="result-count">{% if page_lang == 'th' %}{{ filtered_posts | length }} {% if filtered_posts | length == 1 %}บทความ{% else %}บทความ{% endif %}ที่พบ{% else %}{{ filtered_posts | length }} writeup{% if filtered_posts | length != 1 %}s{% endif %} shown{% endif %}</div>
 <ol class="post-list" data-archive-list>
   {% for post in filtered_posts %}{% include "_post_item.html" %}{% endfor %}
 </ol>
-<div class="empty-state" id="empty-state" role="status">ไม่เจอ writeup ที่ตรงกับคำค้น — ลองลบตัวกรองหรือใช้คำสั้นลง</div>
+<div class="empty-state" id="empty-state" role="status">{% if page_lang == 'th' %}ไม่เจอ writeup ที่ตรงกับคำค้น — ลองลบตัวกรองหรือใช้คำสั้นลง{% else %}No writeups match your search — try clearing the filter or using shorter terms.{% endif %}</div>
 {% endblock %}

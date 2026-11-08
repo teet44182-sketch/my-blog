@@ -19,7 +19,7 @@ CONTENT = ROOT / 'content' / 'posts'
 DIST = ROOT / 'dist'
 SITE_URL = os.environ.get('SITE_URL', 'https://teet44182-sketch.github.io/my-blog').rstrip('/')
 SITE_TITLE = 'my-blog'
-SITE_DESCRIPTION = 'Pentest labs, CTF writeups, and attack notes — measured, repeatable, documented.'
+SITE_DESCRIPTION = 'Pentest writeups from Hack The Box, PortSwigger, and CTFs.'
 BASE_PATH = os.environ.get('SITE_BASE', '').rstrip('/')
 if BASE_PATH and not BASE_PATH.startswith('/'):
     BASE_PATH = f'/{BASE_PATH}'
@@ -34,17 +34,17 @@ PLATFORMS = {
     'hack-the-box': {
         'name': 'Hack The Box',
         'short': 'HTB',
-        'description': 'Hack The Box machines and challenges — recon to root, documented.',
+        'description': 'Hack The Box machines and challenges, from recon to root.',
     },
     'portswigger': {
         'name': 'PortSwigger',
         'short': 'PortSwigger',
-        'description': 'PortSwigger Web Security Academy writeups and web exploitation notes.',
+        'description': 'PortSwigger Web Security Academy writeups.',
     },
     'ctf': {
         'name': 'CTF / Competition',
         'short': 'CTF',
-        'description': 'CTF and competition writeups — challenges, tooling, lessons learned.',
+        'description': 'CTF and competition writeups.',
     },
 }
 PLATFORM_ORDER = ['hack-the-box', 'portswigger', 'ctf']
@@ -59,36 +59,83 @@ def slugify(text: str) -> str:
     return text or 'section'
 
 
-def inline_format(text: str) -> str:
+def resolve_image_url(src: str, asset_base: str) -> str:
+    if src.startswith(('http://', 'https://', '/', 'data:')):
+        return src
+    normalized = src[2:] if src.startswith('./') else src
+    if normalized.startswith('assets/'):
+        return f'{asset_base}{normalized}' if asset_base else f'/{normalized}'
+    raise ValueError(f'relative image path must start with assets/: {src!r}')
+
+
+def image_dimensions(path: Path) -> tuple[int, int] | None:
+    try:
+        with path.open('rb') as handle:
+            header = handle.read(32)
+    except OSError:
+        return None
+    if header.startswith(b'\x89PNG\r\n\x1a\n') and header[12:16] == b'IHDR':
+        return int.from_bytes(header[16:20], 'big'), int.from_bytes(header[20:24], 'big')
+    if header[:6] in (b'GIF87a', b'GIF89a'):
+        return int.from_bytes(header[6:8], 'little'), int.from_bytes(header[8:10], 'little')
+    return None
+
+
+def image_tag(alt: str, src: str, asset_base: str, asset_root: Path | None) -> str:
+    dimensions = None
+    if asset_root is not None and not src.startswith(('http://', 'https://', '/', 'data:')):
+        normalized = src[2:] if src.startswith('./') else src
+        if normalized.startswith('assets/'):
+            dimensions = image_dimensions(asset_root / normalized)
+    size_attrs = f' width="{dimensions[0]}" height="{dimensions[1]}"' if dimensions else ''
+    return f'<img src="{resolve_image_url(src, asset_base)}" alt="{alt}"{size_attrs} loading="lazy" decoding="async">'
+
+
+def link_tag(label: str, href: str) -> str:
+    target = ' target="_blank" rel="noopener noreferrer"' if href.startswith(('http://', 'https://')) else ''
+    return f'<a href="{href}"{target}>{label}</a>'
+
+
+def inline_format(text: str, asset_base: str = '', asset_root: Path | None = None) -> str:
     text = html.escape(text, quote=False)
-    text = re.sub(r'!\[([^\]]*)\]\((https?://[^)\s]+|/[^)\s]+)\)', lambda m: f'<img src="{m.group(2)}" alt="{m.group(1)}" loading="lazy">', text)
-    text = re.sub(r'\[([^\]]+)\]\((https?://[^)\s]+|/[^)\s]+|mailto:[^)\s]+)\)', lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>', text)
+    text = re.sub(
+        r'!\[([^\]]*)\]\((https?://[^)\s]+|/[^)\s]+|[^)\s]+)\)',
+        lambda m: image_tag(m.group(1), m.group(2), asset_base, asset_root),
+        text,
+    )
+    text = re.sub(r'\[([^\]]+)\]\((https?://[^)\s]+|/[^)\s]+|mailto:[^)\s]+)\)', lambda m: link_tag(m.group(1), m.group(2)), text)
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
     text = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', text)
     return text
 
 
-def render_table(rows: list[str]) -> str:
+def render_table(rows: list[str], asset_base: str = '', asset_root: Path | None = None) -> str:
+    def fmt(value: str) -> str:
+        return inline_format(value, asset_base, asset_root)
+
     parsed = []
     for row in rows:
         cells = [cell.strip() for cell in row.strip().strip('|').split('|')]
         parsed.append(cells)
     if len(parsed) < 2:
-        return ''.join(f'<p>{inline_format(row)}</p>' for row in rows)
+        return ''.join(f'<p>{fmt(row)}</p>' for row in rows)
 
     header = parsed[0]
     body = parsed[2:] if re.fullmatch(r'[:\-|\s]+', parsed[1][0]) or all(re.fullmatch(r'[:\-]+', cell) for cell in parsed[1]) else parsed[1:]
     out = ['<div class="table-wrap"><table><thead><tr>']
-    out += [f'<th>{inline_format(cell)}</th>' for cell in header]
+    out += [f'<th>{fmt(cell)}</th>' for cell in header]
     out.append('</tr></thead><tbody>')
     for row in body:
-        out.append('<tr>' + ''.join(f'<td>{inline_format(cell)}</td>' for cell in row) + '</tr>')
+        out.append('<tr>' + ''.join(f'<td>{fmt(cell)}</td>' for cell in row) + '</tr>')
     out.append('</tbody></table></div>')
     return ''.join(out)
 
 
-def render_markdown(md: str) -> tuple[str, list[dict[str, str]]]:
+def render_markdown(md: str, asset_base: str = '', asset_root: Path | None = None) -> tuple[str, list[dict[str, str]]]:
+    def fmt(value: str) -> str:
+        return inline_format(value, asset_base, asset_root)
+
     code_blocks: list[tuple[str, str]] = []
 
     def stash_code(match: re.Match[str]) -> str:
@@ -132,31 +179,31 @@ def render_markdown(md: str) -> tuple[str, list[dict[str, str]]]:
             level = min(max(level, 1), 4)
             text = lines[0].lstrip('#').strip()
             heading_id = slugify(text)
-            html_blocks.append(f'<h{level} id="{heading_id}">{inline_format(text)}</h{level}>')
+            html_blocks.append(f'<h{level} id="{heading_id}">{fmt(text)}</h{level}>')
             if level in (2, 3):
-                toc.append({'id': heading_id, 'text': re.sub(r'<[^>]+>', '', inline_format(text))})
+                toc.append({'id': heading_id, 'text': re.sub(r'<[^>]+>', '', fmt(text))})
             continue
 
         if len(lines) >= 2 and lines[0].lstrip().startswith('|') and lines[1].lstrip().startswith('|'):
-            html_blocks.append(render_table(lines))
+            html_blocks.append(render_table(lines, asset_base, asset_root))
             continue
 
         if all(re.match(r'^\s*[-*]\s+', line) for line in lines):
             items = [re.sub(r'^\s*[-*]\s+', '', line).strip() for line in lines]
-            html_blocks.append('<ul>' + ''.join(f'<li>{inline_format(item)}</li>' for item in items) + '</ul>')
+            html_blocks.append('<ul>' + ''.join(f'<li>{fmt(item)}</li>' for item in items) + '</ul>')
             continue
 
         if all(re.match(r'^\s*\d+\.\s+', line) for line in lines):
             items = [re.sub(r'^\s*\d+\.\s+', '', line).strip() for line in lines]
-            html_blocks.append('<ol>' + ''.join(f'<li>{inline_format(item)}</li>' for item in items) + '</ol>')
+            html_blocks.append('<ol>' + ''.join(f'<li>{fmt(item)}</li>' for item in items) + '</ol>')
             continue
 
         if lines[0].startswith('> '):
             quote = ' '.join(line.removeprefix('> ').strip() for line in lines)
-            html_blocks.append(f'<div class="callout">{inline_format(quote)}</div>')
+            html_blocks.append(f'<div class="callout">{fmt(quote)}</div>')
             continue
 
-        html_blocks.append(f'<p>{inline_format(" ".join(line.strip() for line in lines))}</p>')
+        html_blocks.append(f'<p>{fmt(" ".join(line.strip() for line in lines))}</p>')
 
     return '\n'.join(html_blocks), toc
 
@@ -165,7 +212,7 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     match = re.match(r'^---\s*\n(.*?)\n---\s*\n?(.*)$', text, flags=re.DOTALL)
     if not match:
         return {}, text
-    data = yaml.safe_load(match.group(1)) or {}
+    data = yaml.safe_load(match.group(1).replace('\u00a0', ' ').replace('\ufeff', '')) or {}
     return data, match.group(2)
 
 
@@ -256,6 +303,31 @@ def build_public_group(platform: str, slug: str, variants: list[dict]) -> dict |
     return group
 
 
+def build_history_years(posts: list[dict]) -> list[dict]:
+    grouped: dict[int, list[dict]] = {}
+    for post in posts:
+        parsed = datetime.strptime(post['date'], '%Y-%m-%d')
+        availability = 'EN + TH' if post['en_ready'] and post['th_ready'] else ('EN only' if post['en_ready'] else 'TH only')
+        grouped.setdefault(parsed.year, []).append({
+            **post,
+            'availability': availability,
+            'day': parsed.strftime('%d'),
+            'month_short': parsed.strftime('%b'),
+            'year': parsed.year,
+        })
+
+    years = []
+    for year in sorted(grouped, reverse=True):
+        items = grouped[year]
+        years.append({
+            'year': year,
+            'id': f'year-{year}',
+            'count': len(items),
+            'items': items,
+        })
+    return years
+
+
 def collect_public_groups() -> list[dict]:
     all_markdown = sorted(CONTENT.rglob('*.md'))
     invalid = [path for path in all_markdown if not LANGUAGE_FILENAME.fullmatch(path.name)]
@@ -313,7 +385,7 @@ def normalize_platform(value: object, path: Path) -> str:
 
 
 def normalize_post(path: Path) -> dict:
-    raw = path.read_text(encoding='utf-8')
+    raw = path.read_text(encoding='utf-8-sig')
     meta, markdown = parse_frontmatter(raw)
 
     filename_slug, language = parse_language_filename(path)
@@ -325,7 +397,8 @@ def normalize_post(path: Path) -> dict:
 
     platform = normalize_platform(meta.get('platform'), path)
     platform_info = PLATFORMS[platform]
-    content_html, toc = render_markdown(markdown)
+    asset_base = f'{BASE_PATH}/writeups/{platform}/'
+    content_html, toc = render_markdown(markdown, asset_base, CONTENT / platform)
     words = len(re.findall(r'\S+', markdown))
     read_time = max(1, math.ceil(words / 220))
 
@@ -387,6 +460,13 @@ def main() -> None:
     env.filters['urlencode'] = urlencode
 
     posts = collect_public_groups()
+    history_years = build_history_years(posts)
+    history_stats = {
+        'total': len(posts),
+        'english': sum(1 for post in posts if post['en_ready']),
+        'thai': sum(1 for post in posts if post['th_ready']),
+        'platforms': len({post['platform'] for post in posts}),
+    }
 
     all_categories = Counter(post['category'] for post in posts)
     tags = Counter(tag for post in posts for tag in post['tags'])
@@ -402,49 +482,108 @@ def main() -> None:
             'url': f'{BASE_PATH}/writeups/{key}/',
         })
 
+    asset_version = max(
+        (SRC / 'assets' / 'css' / 'site.css').stat().st_mtime_ns,
+        (SRC / 'assets' / 'js' / 'app.js').stat().st_mtime_ns,
+    )
+    about_photo_file = next((name for name in ('about.jpg', 'about.png', 'about.webp') if (SRC / 'assets' / 'img' / name).is_file()), None)
+    about_photo = f'{BASE_PATH}/assets/img/{about_photo_file}' if about_photo_file else ''
     common = {
         'posts': posts,
+        'post_count': len(posts),
+        'last_updated': posts[0]['date'] if posts else '',
         'platforms': platforms,
         'categories': dict(sorted(all_categories.items(), key=lambda item: (-item[1], item[0]))),
         'tags': dict(sorted(tags.items(), key=lambda item: (-item[1], item[0]))),
         'site_url': SITE_URL,
         'site_title': SITE_TITLE,
         'base': BASE_PATH,
+        'asset_base': BASE_PATH,
+        'about_photo': about_photo,
+        'asset_version': asset_version,
     }
 
-    write(DIST / 'index.html', env.get_template('home.html').render(
-        title=SITE_TITLE,
-        description=SITE_DESCRIPTION,
-        nav='home',
-        **common,
-    ))
+    def localized_path(path: str, language: str) -> str:
+        base = f'{BASE_PATH}/th' if language == 'th' else BASE_PATH
+        if path == '/':
+            return f'{base}/' if base else '/'
+        return f'{base}{path}'
 
-    write(DIST / 'writeups' / 'index.html', env.get_template('writeups.html').render(
-        title=f'Writeups — {SITE_TITLE}',
-        description='Pentest writeups grouped by platform: Hack The Box, PortSwigger, and CTF.',
-        nav='writeups',
-        page_heading='Writeups',
-        page_eyebrow='All writeups / archive',
-        page_intro='All writeups, searchable by platform, tag, difficulty, and title. Use / to focus search and Esc to clear.',
-        active_platform=None,
-        filtered_posts=posts,
-        **common,
-    ))
-    write(DIST / 'archive' / 'index.html', (DIST / 'writeups' / 'index.html').read_text(encoding='utf-8'))
+    def static_output_path(path: str, language: str) -> Path:
+        if path == '/':
+            target = DIST / 'index.html'
+        elif path.endswith('.html'):
+            target = DIST / path.lstrip('/')
+        else:
+            target = DIST / path.lstrip('/') / 'index.html'
+        if language == 'th':
+            target = DIST / 'th' / target.relative_to(DIST)
+        return target
+
+    def write_static(path: str, template: str, language: str, **context) -> None:
+        base = f'{BASE_PATH}/th' if language == 'th' else BASE_PATH
+        merged = {
+            **common,
+            **context,
+            'base': base,
+            'page_lang': language,
+            'current_language': language,
+            'lang_en_url': localized_path(path, 'en'),
+            'lang_th_url': localized_path(path, 'th'),
+        }
+        write(static_output_path(path, language), env.get_template(template).render(**merged))
+
+    for language in LANGUAGE_ORDER:
+        is_th = language == 'th'
+        write_static('/', 'home.html', language,
+            title=SITE_TITLE,
+            description=SITE_DESCRIPTION if not is_th else 'บทความและโน้ตแล็บจาก Hack The Box, PortSwigger และ CTF',
+            nav='home',
+        )
+        write_static('/history/', 'history.html', language,
+            title=f'{"ประวัติ" if is_th else "History"} — {SITE_TITLE}',
+            description='รวม writeups ตามวันที่' if is_th else 'All writeups by date.',
+            nav='history',
+            history_years=history_years,
+            history_stats=history_stats,
+        )
+        write_static('/writeups/', 'writeups.html', language,
+            title=f'{"บทความ" if is_th else "Writeups"} — {SITE_TITLE}',
+            description='รายการ pentest writeups แยกตาม platform, tag, ความยาก และชื่อเรื่อง' if is_th else 'Pentest writeups grouped by platform: Hack The Box, PortSwigger, and CTF.',
+            nav='writeups',
+            page_heading='บทความ' if is_th else 'Writeups',
+            page_intro='ค้นหาและเลือกดูตาม platform, tag, ระดับความยาก และชื่อเรื่อง' if is_th else 'Search and browse by platform, tag, difficulty, and title.',
+            active_platform=None,
+            filtered_posts=posts,
+        )
+        write_static('/archive/', 'writeups.html', language,
+            title=f'{"บทความ" if is_th else "Writeups"} — {SITE_TITLE}',
+            description='รายการ pentest writeups แยกตาม platform, tag, ความยาก และชื่อเรื่อง' if is_th else 'Pentest writeups grouped by platform: Hack The Box, PortSwigger, and CTF.',
+            nav='writeups',
+            page_heading='บทความ' if is_th else 'Writeups',
+            page_intro='ค้นหาและเลือกดูตาม platform, tag, ระดับความยาก และชื่อเรื่อง' if is_th else 'Search and browse by platform, tag, difficulty, and title.',
+            active_platform=None,
+            filtered_posts=posts,
+        )
 
     for platform in platforms:
         filtered = [post for post in posts if post['platform'] == platform['key']]
-        write(DIST / 'writeups' / platform['key'] / 'index.html', env.get_template('writeups.html').render(
-            title=f"{platform['name']} — {SITE_TITLE}",
-            description=platform['description'],
-            nav='writeups',
-            page_heading=platform['name'],
-            page_eyebrow=f"Writeups / {platform['short']}",
-            page_intro=platform['description'],
-            active_platform=platform['key'],
-            filtered_posts=filtered,
-            **common,
-        ))
+        for language in LANGUAGE_ORDER:
+            is_th = language == 'th'
+            write_static(f'/writeups/{platform["key"]}/', 'writeups.html', language,
+                title=f"{platform['name']} — {SITE_TITLE}",
+                description=platform['description'],
+                nav='writeups',
+                page_heading=platform['name'],
+                page_intro=platform['description'],
+                active_platform=platform['key'],
+                filtered_posts=filtered,
+            )
+
+    for platform in PLATFORM_ORDER:
+        source_assets = CONTENT / platform / 'assets'
+        if source_assets.is_dir():
+            shutil.copytree(source_assets, DIST / 'writeups' / platform / 'assets', dirs_exist_ok=True)
 
     for index, post in enumerate(posts):
         same_platform = [candidate for candidate in posts if candidate['platform'] == post['platform']]
@@ -476,6 +615,11 @@ def main() -> None:
                     nav='writeups',
                     page_lang=language,
                     post=current,
+                    en_url=post['en_url'],
+                    th_url=post['th_url'],
+                    lang_en_url=post['en_url'],
+                    lang_th_url=post['th_url'],
+                    current_language=language,
                     prev_post=prev_post,
                     next_post=next_post,
                     **common,
@@ -489,8 +633,8 @@ def main() -> None:
             if language == 'th':
                 output_path = output_path / 'th'
             write(output_path / 'index.html', env.get_template('translation_pending.html').render(
-                title=f'{"ไทย" if language == "th" else "English"} version pending — {SITE_TITLE}',
-                description='This post is being written and translated manually.',
+                title=f'{"ฉบับภาษาไทยกำลังเขียน" if language == "th" else "English version coming soon"} — {SITE_TITLE}',
+                description='This page is not available in this language yet.',
                 nav='writeups',
                 page_lang=language,
                 pending_language=language,
@@ -499,53 +643,26 @@ def main() -> None:
                 current_language=language,
                 en_url=post['en_url'],
                 th_url=post['th_url'],
+                lang_en_url=post['en_url'],
+                lang_th_url=post['th_url'],
                 group=post,
                 **common,
             ))
 
-    about_skills = [
-        {'name': 'Web Exploitation', 'value': 85},
-        {'name': 'Linux / PrivEsc', 'value': 80},
-        {'name': 'Network Recon', 'value': 78},
-        {'name': 'Active Directory', 'value': 72},
-        {'name': 'Documentation', 'value': 88},
-    ]
-    write(DIST / 'about' / 'index.html', env.get_template('about.html').render(
-        title=f'About — {SITE_TITLE}',
-        description='About my-blog and how these pentest writeups are organized.',
-        nav='about',
-        skills=about_skills,
-        **common,
-    ))
+    for language in LANGUAGE_ORDER:
+        is_th = language == 'th'
+        write_static('/about/', 'about.html', language,
+            title=f'{"เกี่ยวกับ" if is_th else "About"} — {SITE_TITLE}',
+            description='เกี่ยวกับผมและ writeups' if is_th else 'About me and the writeups.',
+            nav='about',
+        )
+        write_static('/404.html', '404.html', language,
+            title=f'404 — {SITE_TITLE}',
+            description='ไม่พบหน้านี้' if is_th else 'Page not found.',
+            nav='',
+        )
 
-    write(DIST / '404.html', env.get_template('404.html').render(
-        title=f'404 — {SITE_TITLE}',
-        description='Page not found.',
-        nav='',
-        **common,
-    ))
-
-    rss_items = '\n'.join(
-        f'    <item><title>{html.escape(post["title"])}</title><link>{absolute_url(post["url"])}</link>'
-        f'<guid isPermaLink="true">{absolute_url(post["url"])}</guid>'
-        f'<description>{html.escape(post["summary"])}</description>'
-        f'<pubDate>{datetime.strptime(post["date"], "%Y-%m-%d").strftime("%a, %d %b %Y 00:00:00 GMT")}</pubDate></item>'
-        for post in posts
-    )
-    rss = f'''<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
-  <channel>
-    <title>{html.escape(SITE_TITLE)}</title>
-    <description>{html.escape(SITE_DESCRIPTION)}</description>
-    <link>{SITE_URL}/</link>
-    <language>en-US</language>
-{rss_items}
-  </channel>
-</rss>
-'''
-    write(DIST / 'rss.xml', rss)
-
-    urls = ['/', '/writeups/', '/about/'] + [platform['url'] for platform in platforms]
+    urls = ['/', '/writeups/', '/history/', '/about/', '/th/', '/th/writeups/', '/th/history/', '/th/about/', '/th/archive/', '/archive/'] + [platform['url'] for platform in platforms] + [localized_path(f'/writeups/{platform["key"]}/', 'th') for platform in platforms]
     for post in posts:
         if post['en_ready']:
             urls.append(post['en_url'])
